@@ -65,6 +65,19 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
   return result;
 }
 
+std::pair<std::vector<double>, std::vector<double>> Map2VehicleCoord(
+    vector<double> x_map, vector<double> y_map, double xc, double yc, double psi){
+
+  vector<double> x_local, y_local;
+
+  for (size_t i = 0; i != x_map.size(); i++) {
+    x_local.push_back( (x_map[i] - xc) * cos(psi) + (y_map[i] - yc) * sin(psi) );
+    y_local.push_back( (y_map[i] - yc) * cos(psi) - (x_map[i] - xc) * sin(psi) );
+  }
+
+  return std::make_pair(x_local, y_local);
+}
+
 int main() {
   uWS::Hub h;
 
@@ -85,61 +98,81 @@ int main() {
         string event = j[0].get<string>();
         if (event == "telemetry") {
           // j[1] is the data JSON object
+
+          // reference trajectory in map FoR
           vector<double> ptsx = j[1]["ptsx"];
           vector<double> ptsy = j[1]["ptsy"];
+
+          // extract state vector variables
           double px = j[1]["x"];
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
 
-          /*
-          * TODO: Calculate steering angle and throttle using MPC.
-          *
-          * Both are in between [-1, 1].
-          *
-          */
-          double steer_value;
-          double throttle_value;
+          // cast the std::vectors to Eigen::VectorXd
+          Eigen::VectorXd ptsx_vxd = Eigen::VectorXd::Map(ptsx.data(), ptsx.size());
+          Eigen::VectorXd ptsy_vxd = Eigen::VectorXd::Map(ptsy.data(), ptsy.size());
+          //Eigen::Map<Eigen::VectorXd> ptsx_vxd(&ptsx[0], ptsx.size());
+          //Eigen::Map<Eigen::VectorXd> ptsy_vxd(&ptsy[0], ptsy.size());
+
+          // get coefficients of degree 3 polynomial fit of the trajectory
+          auto coeffs = polyfit(ptsx_vxd, ptsy_vxd, 3);
+
+          // cross track error calculated by evaluating polynomial at x, f(x) and subtracting y.
+          double cte = polyeval(coeffs, px) - py;
+
+          // orientation error: psi - desired_psi
+          // where desired_psi can be calculated as the tangential angle of the polynomial f evaluated at x
+          double epsi = psi - atan(coeffs[1]);
+
+          // build state input for the solve function
+          Eigen::VectorXd state(6);
+          state << px, py, psi, v, cte, epsi;
+
+          // perform optimization
+          vector<double> solution = mpc.Solve(state, coeffs);
+
+          // optimal actuator inputs
+          double steer_value = solution[0] / deg2rad(25); // normalized steer_value to [-1,1]
+          double throttle_value = solution[1];
+
+          // optimal predicted trajectory
+          int N = int((solution.size() - 2) / 2); // TODO: not nicest way to define N...
+          vector<double> x_sol(&solution[2], &solution[2 + N]);
+          vector<double> y_sol(&solution[2 + N], &solution[2 + N * 2]);
 
           json msgJson;
-          // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
-          // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = throttle_value;
 
-          //Display the MPC predicted trajectory 
-          vector<double> mpc_x_vals;
-          vector<double> mpc_y_vals;
+          // MPC predicted trajectory in vehicle's local coordinate system
+          auto mcp_trajectory_local = Map2VehicleCoord(x_sol, y_sol, px, py, psi);
+          vector<double> mpc_x_vals = mcp_trajectory_local.first;
+          vector<double> mpc_y_vals = mcp_trajectory_local.second;
 
-          //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
-
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
 
-          //Display the waypoints/reference line
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
+          // waypoints/reference line in vehicle's local coordinate system
+          auto waypoints_local = Map2VehicleCoord(ptsx, ptsy, px, py, psi);
+          vector<double> next_x_vals = waypoints_local.first;
+          vector<double> next_y_vals = waypoints_local.second;
 
-          //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
-
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
 
 
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           std::cout << msg << std::endl;
+
           // Latency
-          // The purpose is to mimic real driving conditions where
-          // the car does actuate the commands instantly.
-          //
-          // Feel free to play around with this value but should be to drive
-          // around the track with 100ms latency.
-          //
-          // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
-          // SUBMITTING.
-          this_thread::sleep_for(chrono::milliseconds(100));
+          // the purpose is to mimic real driving conditions where the car doesn't actuate the commands instantly.
+          // for the exercise, the car should be able to drive around the track
+          // with a latency of 100 ms
+
+          this_thread::sleep_for(chrono::milliseconds(0)); // TODO: set back to 100
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
