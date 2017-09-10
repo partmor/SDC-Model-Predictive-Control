@@ -65,6 +65,8 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
   return result;
 }
 
+// convert a set of (x_map,y_map) values in map FoR, to the vehicle local FoR, given the
+// cars position and heading (xc, yc, psi)
 std::pair<std::vector<double>, std::vector<double>> Map2VehicleCoord(
     vector<double> x_map, vector<double> y_map, double xc, double yc, double psi){
 
@@ -99,45 +101,60 @@ int main() {
         if (event == "telemetry") {
           // j[1] is the data JSON object
 
-          // reference trajectory in map FoR
+          // reference trajectory in MAP FoR
           vector<double> ptsx = j[1]["ptsx"];
           vector<double> ptsy = j[1]["ptsy"];
 
-          // extract state vector variables
+          // state vector variables in MAP FoR
           double px = j[1]["x"];
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
 
+          // state vector variables in LOCAL FoR
+          double px_local = 0;
+          double py_local = 0;
+          double psi_local = 0;
+          double v_local = v;
+
+          // reference trajectory in LOCAL FoR
+          auto waypoints_local = Map2VehicleCoord(ptsx, ptsy, px, py, psi);
+          vector<double> ptsx_local = waypoints_local.first;
+          vector<double> ptsy_local = waypoints_local.second;
+
+          // for convenience, THE OPTIMIZATION PROBLEM WILL BE RESOLVED IN LOCAL FRAME OF REFERENCE
+
           // cast the std::vectors to Eigen::VectorXd
-          Eigen::VectorXd ptsx_vxd = Eigen::VectorXd::Map(ptsx.data(), ptsx.size());
-          Eigen::VectorXd ptsy_vxd = Eigen::VectorXd::Map(ptsy.data(), ptsy.size());
-          //Eigen::Map<Eigen::VectorXd> ptsx_vxd(&ptsx[0], ptsx.size());
-          //Eigen::Map<Eigen::VectorXd> ptsy_vxd(&ptsy[0], ptsy.size());
+          Eigen::Map<Eigen::VectorXd> ptsx_vxd(&ptsx_local[0], ptsx_local.size());
+          Eigen::Map<Eigen::VectorXd> ptsy_vxd(&ptsy_local[0], ptsy_local.size());
 
           // get coefficients of degree 3 polynomial fit of the trajectory
           auto coeffs = polyfit(ptsx_vxd, ptsy_vxd, 3);
 
           // cross track error calculated by evaluating polynomial at x, f(x) and subtracting y.
-          double cte = polyeval(coeffs, px) - py;
+          double cte = polyeval(coeffs, px_local) - py_local;
 
           // orientation error: psi - desired_psi
           // where desired_psi can be calculated as the tangential angle of the polynomial f evaluated at x
-          double epsi = psi - atan(coeffs[1]);
+          // using expression for tangential angle of a 3rd degree polynomial:
+          double epsi = psi_local - atan(coeffs[1] + 2 * coeffs[2] * px_local + 3 * coeffs[3] * pow(px_local, 2));
 
           // build state input for the solve function
           Eigen::VectorXd state(6);
-          state << px, py, psi, v, cte, epsi;
+          state << px_local, py_local, psi_local, v_local, cte, epsi;
 
-          // perform optimization
+          // optimization
           vector<double> solution = mpc.Solve(state, coeffs);
 
-          // optimal actuator inputs
-          double steer_value = solution[0] / deg2rad(25); // normalized steer_value to [-1,1]
+          // extract optimal actuator inputs
+          // change steering angle sign for consistency: if delta is  positive we rotate counter-clockwise,
+          // or turn left. In the simulator however, a positive value implies a right turn and
+          // a negative value implies a left turn
+          double steer_value = - solution[0] / deg2rad(25); // normalized steer_value to [-1,1]
           double throttle_value = solution[1];
 
-          // optimal predicted trajectory
-          int N = int((solution.size() - 2) / 2); // TODO: not nicest way to define N...
+          // extract optimal predicted trajectory
+          int N = int((solution.size() - 2) / 2);
           vector<double> x_sol(&solution[2], &solution[2 + N]);
           vector<double> y_sol(&solution[2 + N], &solution[2 + N * 2]);
 
@@ -146,18 +163,16 @@ int main() {
           msgJson["throttle"] = throttle_value;
 
           // MPC predicted trajectory in vehicle's local coordinate system
-          auto mcp_trajectory_local = Map2VehicleCoord(x_sol, y_sol, px, py, psi);
-          vector<double> mpc_x_vals = mcp_trajectory_local.first;
-          vector<double> mpc_y_vals = mcp_trajectory_local.second;
+          vector<double> mpc_x_vals = x_sol;
+          vector<double> mpc_y_vals = y_sol;
 
           // the points in the simulator are connected by a Green line
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
 
           // waypoints/reference line in vehicle's local coordinate system
-          auto waypoints_local = Map2VehicleCoord(ptsx, ptsy, px, py, psi);
-          vector<double> next_x_vals = waypoints_local.first;
-          vector<double> next_y_vals = waypoints_local.second;
+          vector<double> next_x_vals = ptsx_local;
+          vector<double> next_y_vals = ptsy_local;
 
           // the points in the simulator are connected by a Yellow line
           msgJson["next_x"] = next_x_vals;
