@@ -111,10 +111,10 @@ class FG_eval {
         AD<double> a0 = vars[a_start + t];
 
         // evaluate reference line at time t
-        AD<double> f0 = coeffs[0] + coeffs[1] * x0;
+        AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2) + coeffs[3] * CppAD::pow(x0, 3);
 
         // evaluate desired orientation at time t, as the tangential angle to the reference line
-        AD<double> psides0 = CppAD::atan(coeffs[1]);
+        AD<double> psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * CppAD::pow(x0, 2));
 
         // recall the model equations:
 
