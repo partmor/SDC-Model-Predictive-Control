@@ -6,8 +6,8 @@
 using CppAD::AD;
 
 
-size_t N = 20;
-double dt = 0.05;
+size_t N = 10;
+double dt = 0.1;
 
 // Lf is the length from the front of the car to CoG, it is a physical characteristic of the vehicle.
 // It was obtained by measuring the radius formed by the vehicle in the simulator running around
@@ -17,7 +17,7 @@ double dt = 0.05;
 const double Lf = 2.67;
 
 // reference velocity used in penalty term to avoid stopping
-double ref_v = 40;
+double ref_v = 20;
 
 // the Ipopt solver takes all the state and actuator variables (for all instants) in a single vector:
 // [x0, ... , xN-1, y0, ... , yN-1, psi0, ..., psiN-1, v0, ... aN-2]
@@ -252,11 +252,14 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   auto cost = solution.obj_value;
   std::cout << "Cost " << cost << std::endl;
 
-
-  // return the first actuator values
   // {...} is shorthand for creating a vector
-  return {solution.x[x_start + 1],   solution.x[y_start + 1],
-          solution.x[psi_start + 1], solution.x[v_start + 1],
-          solution.x[cte_start + 1], solution.x[epsi_start + 1],
-          solution.x[delta_start],   solution.x[a_start]};
+  // first two outputs are the steering and acceleration values
+  vector<double> result = {solution.x[delta_start], solution.x[a_start]};
+  // the rest of 2*N outputs correspond to:
+  // 2:N+1 --> x coordinates of predicted trajectory (N values)
+  // N+2:2*N+1 --> y coordinates of predicted trajectory (N values)
+  for (size_t i = 0; i < 2 * N; i++){
+    result.push_back(solution.x[x_start + i]);
+  }
+  return result;
 }
