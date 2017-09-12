@@ -7,7 +7,7 @@ using CppAD::AD;
 
 
 size_t N = 10;
-double dt = 0.1;
+double dt = 0.2;
 
 // Lf is the length from the front of the car to CoG, it is a physical characteristic of the vehicle.
 // It was obtained by measuring the radius formed by the vehicle in the simulator running around
@@ -17,7 +17,7 @@ double dt = 0.1;
 const double Lf = 2.67;
 
 // reference velocity used in penalty term to avoid stopping
-double ref_v = 20;
+double ref_v = 70 * 0.44704; // in m/s
 
 // the Ipopt solver takes all the state and actuator variables (for all instants) in a single vector:
 // [x0, ... , xN-1, y0, ... , yN-1, psi0, ..., psiN-1, v0, ... aN-2]
@@ -53,25 +53,37 @@ class FG_eval {
 
       fg[0] = 0;
 
+      // normalization factors to control order of magnitude of the cost terms
+      double cte_nd = 1.0;
+      double epsi_nd = 20 * M_PI / 180;
+      double v_nd = 5;
+      double delta_nd = 10 * M_PI / 180;
+      double a_nd = 1.0;
+      double ddelta_nd = 10 * M_PI / 180;
+      double da_nd = 1.0;
+
       for (size_t t = 0; t < N; t++) {
         // penalize deviations w.r.t. reference state
-        fg[0] += CppAD::pow(vars[cte_start + t], 2);
-        fg[0] += CppAD::pow(vars[epsi_start + t], 2);
+        fg[0] += CppAD::pow(vars[cte_start + t] / cte_nd, 2);
+        fg[0] += CppAD::pow(vars[epsi_start + t] / epsi_nd, 2);
 
         // penalize car stopping
-        fg[0] += CppAD::pow(vars[v_start + t] - ref_v, 2);
+        fg[0] += CppAD::pow((vars[v_start + t] - ref_v) / v_nd, 2);
       }
 
       // penalize magnitude of actuator inputs
       for (size_t t = 0; t < N - 1; t++) {
-        fg[0] += CppAD::pow(vars[delta_start + t], 2);
-        fg[0] += CppAD::pow(vars[a_start + t], 2);
+        fg[0] += CppAD::pow(vars[delta_start + t] / delta_nd, 2);
+        fg[0] += CppAD::pow(vars[a_start + t] / a_nd, 2);
+
+        // makes steering more stable, decrease speed when delta increases
+        fg[0] += CppAD::pow(vars[delta_start + t] * vars[v_start + t] / (delta_nd * v_nd), 2);
       }
 
       // penalize change rate of actuator input
       for (size_t t = 0; t < N - 2; t++) {
-        fg[0] += CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
-        fg[0] += CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
+        fg[0] += CppAD::pow((vars[delta_start + t + 1] - vars[delta_start + t]) / ddelta_nd * dt, 2);
+        fg[0] += CppAD::pow((vars[a_start + t + 1] - vars[a_start + t]) / da_nd * dt, 2);
       }
 
       //
