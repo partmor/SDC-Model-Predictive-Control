@@ -12,7 +12,7 @@
 // for convenience
 using json = nlohmann::json;
 
-// For converting back and forth between radians and degrees.
+// converting back and forth between radians and degrees.
 constexpr double pi() { return M_PI; }
 double deg2rad(double x) { return x * pi() / 180; }
 double rad2deg(double x) { return x * 180 / pi(); }
@@ -86,7 +86,10 @@ int main() {
   // MPC is initialized here!
   MPC mpc;
 
-  h.onMessage([&mpc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  // use latency state prediction
+  bool lat_predict = false;
+
+  h.onMessage([&mpc, lat_predict](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -110,6 +113,21 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
+          v *= 0.44704; // mph to m/s (SI)
+
+          // latest steering and throttle inputs processed by the car
+          double steer_value = j[1]["steering_angle"];
+          double throttle_value = j[1]["throttle"];
+
+          // latency correction on state
+          long latency = 100; // in ms
+          if (lat_predict){
+            double dt_lat = latency / 1000; // in seconds
+            px += v * cos(psi) * dt_lat;
+            py += v * sin(psi) * dt_lat;
+            psi += - v * steer_value / 2.67 * dt_lat;
+            v += throttle_value * dt_lat;
+          }
 
           // state vector variables in LOCAL FoR
           double px_local = 0;
@@ -150,13 +168,14 @@ int main() {
           // change steering angle sign for consistency: if delta is  positive we rotate counter-clockwise,
           // or turn left. In the simulator however, a positive value implies a right turn and
           // a negative value implies a left turn
-          double steer_value = - solution[0] / deg2rad(25); // normalized steer_value to [-1,1]
-          double throttle_value = solution[1];
+          steer_value = - solution[0] / deg2rad(25); // normalized steer_value to [-1,1]
+          throttle_value = solution[1];
 
           // extract optimal predicted trajectory
           int N = int((solution.size() - 2) / 2);
-          vector<double> x_sol(&solution[2], &solution[2 + N]);
-          vector<double> y_sol(&solution[2 + N], &solution[2 + N * 2]);
+          // + 1 in start pointers just to exclude current state (0 index) from visualization of predicted line
+          vector<double> x_sol(&solution[2 + 1], &solution[2 + N]);
+          vector<double> y_sol(&solution[2 + N + 1], &solution[2 + N * 2]);
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
@@ -187,7 +206,7 @@ int main() {
           // for the exercise, the car should be able to drive around the track
           // with a latency of 100 ms
 
-          this_thread::sleep_for(chrono::milliseconds(0)); // TODO: set back to 100
+          this_thread::sleep_for(chrono::milliseconds(latency));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
