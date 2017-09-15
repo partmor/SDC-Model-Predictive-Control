@@ -123,9 +123,10 @@ int main() {
           long latency = 100; // in ms
           if (lat_predict){
             double dt_lat = latency / 1000; // in seconds
+            double Lf = 2.67;
             px += v * cos(psi) * dt_lat;
             py += v * sin(psi) * dt_lat;
-            psi += - v * steer_value / 2.67 * dt_lat;
+            psi += - v * steer_value / Lf * dt_lat;
             v += throttle_value * dt_lat;
           }
 

@@ -7,7 +7,7 @@ using CppAD::AD;
 
 
 size_t N = 10;
-double dt = 0.2;
+double dt = 0.18;
 
 // Lf is the length from the front of the car to CoG, it is a physical characteristic of the vehicle.
 // It was obtained by measuring the radius formed by the vehicle in the simulator running around
