@@ -1,7 +1,20 @@
-# SDC-Model-Predictive-Control
-Model Predictive Control in C++ for Udacity's SDCar simulator
+# **CarND: Model Predictive Control**  [![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
+[//]: # (Image References)
+[sample_gif]: ./img/mpc_sample.gif 
+[state_update]: ./img/state_update.png
+[error_update]: ./img/error_update.png
 
----
+The goal of this project is to build a controller, using **Model Predictive Control**, that can safely drive an autonomous car around the track in Udacity's [Self-Driving Car simulator](https://github.com/udacity/self-driving-car-sim).
+
+![sample_gif]
+
+## Vehicle Model
+
+The present MPC implementation is based on a **kinematic** vehicle model. These models are simplifications of dynamic models where tire forces, gravity, mass, and other real-world effects are ignored. Nevertheless, a kinematic model is justified in our case, since these models are more tractable and have a reasonable performance at low and moderate speeds.
+
+![state_update]
+
+![error_update]
 
 ## Dependencies
 
