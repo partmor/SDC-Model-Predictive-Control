@@ -3,6 +3,7 @@
 [sample_gif]: ./img/mpc_sample.gif 
 [state_update]: ./img/state_update.png
 [error_update]: ./img/error_update.png
+[state_def]: ./img/state_def.png
 
 The goal of this project is to build a controller, using **Model Predictive Control**, that can safely drive an autonomous car around the track in Udacity's [Self-Driving Car simulator](https://github.com/udacity/self-driving-car-sim).
 
@@ -12,7 +13,17 @@ The goal of this project is to build a controller, using **Model Predictive Cont
 
 The present MPC implementation is based on a **kinematic** vehicle model. These models are simplifications of dynamic models where tire forces, gravity, mass, and other real-world effects are ignored. Nevertheless, a kinematic model is justified in our case, since these models are more tractable and have a reasonable performance at low and moderate speeds.
 
+The **state** of the vehicle is given by its `x` and `y` position, heading `psi`, and velocity `v`, as represented in the following figure:
+
+![state_def]
+
+**Actuator inputs** allow us to control the vehicle state. Cars typically have three main actuators: steering wheel, acceleration pedal, and brake pedal. For simplicity, acceleration / brake pedals are considered a single actuator, with positive values for acceleration and negative values for braking. Hence, actuators are reduced to two control inputs: **steering angle**, `delta`, and acceleration `a`.
+
+The state `[x, y, psi, v]` changes overtime based on the previous state and current actuator inputs `[delta, a]`, as established by the following update equations: 
+
 ![state_update]
+
+Where `L_f` is related to the distance between the front of the vehicle and its center of gravity. The larger the vehicle, the slower the turn rate.
 
 ![error_update]
 
