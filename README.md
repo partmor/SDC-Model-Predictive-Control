@@ -25,7 +25,17 @@ The state `[x, y, psi, v]` changes overtime based on the previous state and curr
 
 Where `L_f` is related to the distance between the front of the vehicle and its center of gravity. The larger the vehicle, the slower the turn rate.
 
+A controller actuates the vehicle to follow the reference trajectory within a set of design requirements. To quantify the *deviation* of the vehicle's actual and predicted paths with respect to the reference trajectory, two key metrics are monitored: 
++ **Cross Track Error**, `cte`: The distance between the reference trajectory and the vehicle's position. A naive first approximation to CTE can be `cte = f(x) - y`, where `f` is the reference trajectory fitted polynomial, and `[x,y]` the position of the car.
++ **Orientation Error**, `epsi`: The difference between the actual orientation of the car, `psi`, and the *desired orientation*: `epsi = psi - psi_des`. At each point, the desired orientation is defined as the direction that is tangential to the reference trajectory, hence `psi_des = atan(f'(x))`, where `f'` is the derivative of the fitted polynomial `f`.
+
+The errors can be monitored over time by integrating them into the state vector, and deriving the kinematic model around the new state vector `[x, y, psi, v, cte, epsi]`. The resulting update equations for the error components are:
+
 ![error_update]
+
+The naive CTE definition becomes ill-defined in situations where the trajectory is parallel to the y-axis. Assuming *moderate* orientation error, this definition is noticeably more robust in the vehicle's local frame of reference, and can be further simplified since the state of the vehicle in its local coordinate system `[x, y, psi]` is constantly `[0, 0, 0]`.
+
+Since the error expressions become much simpler, the MPC optimization problem will be resolved in **local coordinates**.
 
 ## Dependencies
 
