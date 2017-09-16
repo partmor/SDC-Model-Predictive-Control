@@ -39,6 +39,24 @@ Since the error expressions become much simpler, the MPC optimization problem wi
 
 At each instant, the reference trajectory waypoints given in map coordinates are transformed to the car's FoR via a 2D transformation where the rotation of the local system is equal to `psi`, and the origin is equal to the car's position `[x, y]`. The state vector in local FoR becomes `[x, y, psi, v] = [0, 0, 0, v]`.
 
+## Cost function
+
+The cost function has been defined to penalize:
++ Cross track error
++ Orientation error 
++ Large actuator inputs
++ Rate of change of actuator inputs 
++ High velocities combined with sharp steerings
+
+These error terms involve variables of heterogeneous nature: longitudinal and angular errors, steering and acceleration values, that are being blended into a unique metric. Weights must be applied to each term in order to equalize orders of magnitude. 
+
+In this project I have applied weights in the form of **scaling parameters**: each term is made non-dimensional and taken to the unity order of magnitude for *design* driving conditions, with the convenience that they can be *physically reasoned*, making tuning easier and more intuitive. For instance, the following code snippet illustrates how to heavily penalize deviations over 5 m/s with respect to the reference velocity:
+
+```c++
+double v_nd = 5;
+fg[0] += CppAD::pow((vars[v_start + t] - ref_v) / v_nd, 2);
+```
+
 ## Latency
 
 In a *real* car, actuation commands do not execute instantly, there is a delay as the command propagates throught the system. Realistic delays are in the order of 100 milliseconds.
