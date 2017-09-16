@@ -37,6 +37,35 @@ The naive CTE definition becomes ill-defined in situations where the trajectory 
 
 Since the error expressions become much simpler, the MPC optimization problem will be resolved in **local coordinates**.
 
+At each instant the reference trajectory waypoints, given in map coordinates, are transformed to the car's FoR using the 2D generic transformation where the rotation of the local system is equal to `psi`, and the center position equal to the car's `[x, y]`. The state vector in local FoR becomes `[x, y, psi, v] = [0, 0, 0, v]`.
+
+## Latency
+
+In a *real* car, actuation commands do not execute instantly, there is a delay as the command propagates throught the system. Realistic delays are in the order of 100 milliseconds.
+
+This issue is known as **latency**, and it is an important challenge for certain controllers like PID, since it leads to instability if not appropiately accounted for.
+
+The key fact is that given the current state and the resulting optimal actuation, due to latency the control command will not be effectivelly applied until a later state, that obviously does not correspond with the state the command was actually optimized for. 
+
+A way to overcome this is to set the initial state of the vehicle at a given instant not equal to the actual current state, but to a **corrected state**. This corrected state is the result of predicting the vehicle's state after a time step equal to latency, assuming the actuator inputs are constant and equal to the latest effectively applied values. 
+
+```c++
+px += v * cos(psi) * dt_lat;
+py += v * sin(psi) * dt_lat;
+psi += - v * steer_value / Lf * dt_lat;
+v += throttle_value * dt_lat;
+```
+where `dt_lat` is the latency time step, and `steer_value` and `throttle_value` are recovered from the car's telemetry. 
+
+In summary, the corrected state defined above would constitute the actual *current state* for all the subsequent operations:
++ Transformation of waypoints and car position from global to local frame of reference.
++ 3rd order polynomial fitting to reference trajectory
++ Actuator optimization
+
+This correction can be disabled via the `lat_predict` flag in `main.cpp`.
+
+[YouTube link](https://www.youtube.com/watch?v=8fOLtelZ6fY)
+
 ## Dependencies
 
 * cmake >= 3.5
