@@ -37,7 +37,7 @@ The naive CTE definition becomes ill-defined in situations where the trajectory 
 
 Since the error expressions become much simpler, the MPC optimization problem will be resolved in **local coordinates**.
 
-At each instant the reference trajectory waypoints, given in map coordinates, are transformed to the car's FoR using the 2D generic transformation where the rotation of the local system is equal to `psi`, and the center position equal to the car's `[x, y]`. The state vector in local FoR becomes `[x, y, psi, v] = [0, 0, 0, v]`.
+At each instant, the reference trajectory waypoints given in map coordinates are transformed to the car's FoR via a 2D transformation where the rotation of the local system is equal to `psi`, and the origin is equal to the car's position `[x, y]`. The state vector in local FoR becomes `[x, y, psi, v] = [0, 0, 0, v]`.
 
 ## Latency
 
@@ -64,7 +64,11 @@ In summary, the corrected state defined above would constitute the actual *curre
 
 This correction can be disabled via the `lat_predict` flag in `main.cpp`.
 
-[YouTube link](https://www.youtube.com/watch?v=8fOLtelZ6fY)
+## Timestep lenght and elapsed duration
+
+Driving the car at moderate speeds (say 50 mph) using a 2-second horizon involves optimizing the upcoming 40-50 meters. These figures are reasonable given the morphology of the simulator circuit.
+
+Hence, we are considering `N * dt` *near* to 2. Starting with `dt = latency`, the vehicle is unstable: the car is hardly able to keep track in a straight line since it constantly overshoots its control corrections. Behaviour becomes worse when `dt` is decreased. Acceptable performance was achieved with `dt > latency`, in particular choosing time steps around `0.2`. In this [YouTube link](https://www.youtube.com/watch?v=8fOLtelZ6fY) you can find a video of a successfull run using `N = 10` and `dt = 1.8`.
 
 ## Dependencies
 
